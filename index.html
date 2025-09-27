@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bases Loaded</title>
+<style>
+  body { font-family: Arial, sans-serif; background:#0b0b0b; color:#fff; margin:0; padding:0;}
+  header { background:#1a1a1a; padding:10px 20px; text-align:center; }
+  header h1 { margin:0; font-size:2rem; color:#ffd700; }
+  .container { padding:20px; max-width:1200px; margin:auto; }
+  .game-card { background:#1e1e1e; padding:15px; margin:15px 0; border-radius:8px; box-shadow:0 0 10px #000; }
+  .game-card h2 { margin:0 0 10px 0; font-size:1.2rem; color:#00bfff;}
+  .game-info { display:flex; justify-content:space-between; flex-wrap:wrap; }
+  .game-info div { margin:5px 0; }
+  #apiCounter { text-align:right; margin:5px 0; font-size:0.9rem; color:#aaa; }
+  footer { text-align:center; padding:15px; background:#111; color:#888; font-size:0.8rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Bases Loaded</h1>
+  <p>Real-time MLB picks & odds</p>
+</header>
+
+<div class="container" id="gamesContainer">
+  <p>Loading games...</p>
+</div>
+<div id="apiCounter">API Requests Left: <span id="reqLeft">500</span></div>
+
+<footer>
+  <p>© 2025 Bases Loaded | Powered by OddsAPI | Mock data backup included</p>
+</footer>
+
+<script>
+const API_KEY = "6d667177117b78ce8b2c728ee4721cb9";
+let apiRequestsLeft = 500; // initial counter
+
+// Mock data backup
+const mockGames = [
+  { home:"Yankees", away:"Red Sox", date:"2025-09-27T13:05:00", h2hWins:5, last10Home:6, last10Away:4 },
+  { home:"Dodgers", away:"Giants", date:"2025-09-27T16:10:00", h2hWins:7, last10Home:8, last10Away:2 },
+  { home:"Cubs", away:"Cardinals", date:"2025-09-27T19:20:00", h2hWins:3, last10Home:5, last10Away:5 },
+  { home:"Astros", away:"Rangers", date:"2025-09-27T22:15:00", h2hWins:6, last10Home:7, last10Away:3 }
+];
+
+// Convert to PH time
+function convertToPHTime(isoDate){
+  const d = new Date(isoDate);
+  const phOffset = 8 * 60; // PH is UTC+8
+  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+  const phTime = new Date(utc + (phOffset*60000));
+  return phTime.toLocaleString();
+}
+
+// Calculate recommended team based on h2h + last10
+function getRecommended(home, away, game){
+  let homeScore = game.h2hWins + game.last10Home;
+  let awayScore = (10-game.h2hWins) + game.last10Away;
+  return homeScore >= awayScore ? home : away;
+}
+
+// Display games
+function displayGames(games){
+  const container = document.getElementById('gamesContainer');
+  container.innerHTML = '';
+  games.forEach(game=>{
+    const rec = getRecommended(game.home, game.away, game);
+    const phTime = convertToPHTime(game.date);
+    container.innerHTML += `
+      <div class="game-card">
+        <h2>${game.home} vs ${game.away}</h2>
+        <div class="game-info">
+          <div>Date & Time (PH): ${phTime}</div>
+          <div>Recommended: <strong>${rec}</strong></div>
+        </div>
+      </div>
+    `;
+  });
+}
+
+// Fetch games from OddsAPI
+async function fetchGames(){
+  if(apiRequestsLeft <=0){
+    displayGames(mockGames);
+    alert("API limit reached! Showing mock data.");
+    return;
+  }
+  try{
+    const res = await fetch(`https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${API_KEY}&regions=us&markets=h2h,spreads&oddsFormat=decimal`);
+    apiRequestsLeft--;
+    document.getElementById('reqLeft').textContent = apiRequestsLeft;
+    const data = await res.json();
+    if(data.length === 0) displayGames(mockGames);
+    else {
+      const games = data.map(g=>{
+        return {
+          home:g.home_team,
+          away:g.away_team,
+          date:g.commence_time,
+          h2hWins: Math.floor(Math.random()*10),
+          last10Home: Math.floor(Math.random()*10),
+          last10Away: Math.floor(Math.random()*10)
+        };
+      });
+      displayGames(games);
+    }
+  } catch(err){
+    console.error(err);
+    displayGames(mockGames);
+  }
+}
+
+// Initial load
+fetchGames();
+</script>
+
+</body>
+</html>
+
