@@ -3,119 +3,269 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bases Loaded</title>
+<title>Bases Loaded - MLB Dashboard</title>
 <style>
-  body { font-family: Arial, sans-serif; background:#0b0b0b; color:#fff; margin:0; padding:0;}
-  header { background:#1a1a1a; padding:10px 20px; text-align:center; }
-  header h1 { margin:0; font-size:2rem; color:#ffd700; }
-  .container { padding:20px; max-width:1200px; margin:auto; }
-  .game-card { background:#1e1e1e; padding:15px; margin:15px 0; border-radius:8px; box-shadow:0 0 10px #000; }
-  .game-card h2 { margin:0 0 10px 0; font-size:1.2rem; color:#00bfff;}
-  .game-info { display:flex; justify-content:space-between; flex-wrap:wrap; }
-  .game-info div { margin:5px 0; }
-  #apiCounter { text-align:right; margin:5px 0; font-size:0.9rem; color:#aaa; }
-  footer { text-align:center; padding:15px; background:#111; color:#888; font-size:0.8rem; }
+  body { font-family: Arial, sans-serif; background: #0b1d2f; color: #fff; margin:0; padding:0;}
+  header { padding: 20px; text-align: center; background: #071625; }
+  header h1 { margin:0; color:#ffce00; }
+  .game-card { background: #112a44; border-radius: 10px; margin: 15px auto; padding: 15px; width: 90%; max-width: 900px; box-shadow: 0 0 10px #000; }
+  .game-card h2 { margin: 0 0 10px 0; color: #ffce00; }
+  .stats, .props { display: flex; flex-wrap: wrap; gap: 10px; margin-top:10px; }
+  .stat-item { flex:1; background:#0f1f36; padding:10px; border-radius:5px; text-align:center; font-size: 0.9em; }
+  /* NEW STYLE for Probability */
+  .prob { color: #4CAF50; font-weight: bold; margin-left: 5px; } 
+  .highlight { color:#ff9f1c; font-weight:bold; }
+  #apiUsage { padding:10px; background:#071625; text-align:center; }
+  #calculator { background:#112a44; margin:20px auto; padding:20px; border-radius:10px; max-width:500px; }
+  #calculator input, #calculator select, #calculator button { margin:5px 0; padding:8px; width:100%; border-radius:5px; border:none; }
+  #calculator button { background:#ffce00; color:#000; font-weight:bold; cursor:pointer; }
+  #calcResult { margin-top:10px; background:#0f1f36; padding:10px; border-radius:5px; text-align:center; }
 </style>
 </head>
 <body>
-
 <header>
-  <h1>Bases Loaded</h1>
-  <p>Real-time MLB picks & odds</p>
+  <h1>Bases Loaded - MLB Dashboard</h1>
 </header>
 
-<div class="container" id="gamesContainer">
-  <p>Loading games...</p>
-</div>
-<div id="apiCounter">API Requests Left: <span id="reqLeft">500</span></div>
+<div id="apiUsage">OddsAPI Requests Left: <span id="apiCount">500</span></div>
 
-<footer>
-  <p>© 2025 Bases Loaded | Powered by OddsAPI | Mock data backup included</p>
+<div id="gamesContainer"></div>
+
+<div id="calculator">
+  <h2>Bet & EV Calculator</h2>
+  <input type="number" id="stake" placeholder="Enter stake amount" min="1">
+  <select id="teamSelect">
+    <option value="">Select team</option>
+  </select>
+  <button onclick="calculateBet()">Calculate</button>
+  <div id="calcResult"></div>
+</div>
+
+<footer style="padding:15px; text-align:center; background:#071625; margin-top:20px;">
+  <small>&copy; 2025 Bases Loaded. All rights reserved.</small>
 </footer>
 
 <script>
-const API_KEY = "6d667177117b78ce8b2c728ee4721cb9";
-let apiRequestsLeft = 500; // initial counter
+// --- API & Utility Settings ---
+const oddsApiKey = '6d667177117b78ce8b2c728ee4721cb9';
+let apiRemaining = 500; // starting count
 
-// Mock data backup
+const gamesContainer = document.getElementById('gamesContainer');
+const teamSelect = document.getElementById('teamSelect');
+
+// --- NEW UTILITY FUNCTION: IMPLIEID PROBABILITY ---
+function calculateImpliedProbability(odds) {
+    // Works for decimal odds (e.g., 1.5, 2.0)
+    if (odds <= 1) return 0; // Avoid division by zero/invalid odds
+    return (1 / odds) * 100;
+}
+
+// Mock Data as backup (updated to include odds for calculation testing)
 const mockGames = [
-  { home:"Yankees", away:"Red Sox", date:"2025-09-27T13:05:00", h2hWins:5, last10Home:6, last10Away:4 },
-  { home:"Dodgers", away:"Giants", date:"2025-09-27T16:10:00", h2hWins:7, last10Home:8, last10Away:2 },
-  { home:"Cubs", away:"Cardinals", date:"2025-09-27T19:20:00", h2hWins:3, last10Home:5, last10Away:5 },
-  { home:"Astros", away:"Rangers", date:"2025-09-27T22:15:00", h2hWins:6, last10Home:7, last10Away:3 }
+  {
+    home: "Yankees",
+    away: "Red Sox",
+    date: "2025-09-27 18:05",
+    pitcherHome: "Gerrit Cole",
+    pitcherAway: "Chris Sale",
+    last10Home: {wins:7, losses:3},
+    last10Away: {wins:6, losses:4},
+    why: "Mock: Strong bullpen match",
+    oddsHome: 1.80, // Decimal odds
+    oddsAway: 2.00, // Decimal odds
+    evHome: 8,
+    evAway: -5
+  },
+  {
+    home: "Dodgers",
+    away: "Giants",
+    date: "2025-09-27 20:10",
+    pitcherHome: "Clayton Kershaw",
+    pitcherAway: "Johnny Cueto",
+    last10Home: {wins:8, losses:2},
+    last10Away: {wins:5, losses:5},
+    why: "Mock: Hot hitting streak",
+    oddsHome: 1.70,
+    oddsAway: 2.10,
+    evHome: 12,
+    evAway: -7
+  }
 ];
 
-// Convert to PH time
-function convertToPHTime(isoDate){
-  const d = new Date(isoDate);
-  const phOffset = 8 * 60; // PH is UTC+8
-  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
-  const phTime = new Date(utc + (phOffset*60000));
-  return phTime.toLocaleString();
+// --- NEW API FUNCTION: Fetch MLB Schedule (for pitchers) ---
+async function fetchMLBSchedule() {
+    const today = new Date().toISOString().slice(0, 10);
+    // Hydrate probablePitcher to get pitcher details in one call
+    const url = `https://statsapi.mlb.com/api/v1/schedule/games/?sportId=1&startDate=${today}&endDate=${today}&hydrate=probablePitcher`;
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.dates && data.dates.length > 0) {
+            return data.dates[0].games; // Array of games
+        }
+        return [];
+    } catch (e) {
+        console.error("MLB Schedule fetch failed.");
+        return [];
+    }
 }
 
-// Calculate recommended team based on h2h + last10
-function getRecommended(home, away, game){
-  let homeScore = game.h2hWins + game.last10Home;
-  let awayScore = (10-game.h2hWins) + game.last10Away;
-  return homeScore >= awayScore ? home : away;
+// --- Fetch live OddsAPI data ---
+async function fetchOdds() {
+  if(apiRemaining <= 0) return null;
+  try {
+    const res = await fetch(`https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${oddsApiKey}&regions=us&markets=h2h`);
+    apiRemaining--;
+    document.getElementById('apiCount').textContent = apiRemaining;
+    const data = await res.json();
+    return data;
+  } catch(e) {
+    console.log("OddsAPI fetch failed, using mock data.");
+    return null;
+  }
 }
 
-// Display games
-function displayGames(games){
-  const container = document.getElementById('gamesContainer');
-  container.innerHTML = '';
-  games.forEach(game=>{
-    const rec = getRecommended(game.home, game.away, game);
-    const phTime = convertToPHTime(game.date);
-    container.innerHTML += `
-      <div class="game-card">
-        <h2>${game.home} vs ${game.away}</h2>
-        <div class="game-info">
-          <div>Date & Time (PH): ${phTime}</div>
-          <div>Recommended: <strong>${rec}</strong></div>
-        </div>
+// --- RENDER GAME CARD FUNCTION (UPDATED) ---
+function renderGame(game) {
+  // Calculate probability
+  const probHome = calculateImpliedProbability(game.oddsHome).toFixed(1);
+  const probAway = calculateImpliedProbability(game.oddsAway).toFixed(1);
+
+  const card = document.createElement('div');
+  card.className = 'game-card';
+  card.innerHTML = `
+    <h2>${game.away} @ ${game.home}</h2>
+    <div>Date: ${new Date(game.date).toLocaleTimeString()}</div>
+    <div class="stats">
+      <div class="stat-item">Home Pitcher: <span class="highlight">${game.pitcherHome}</span></div>
+      <div class="stat-item">Away Pitcher: <span class="highlight">${game.pitcherAway}</span></div>
+      <div class="stat-item">Home Last 10: W${game.last10Home.wins}-L${game.last10Home.losses}</div>
+      <div class="stat-item">Away Last 10: W${game.last10Away.wins}-L${game.last10Away.losses}</div>
+      <div class="stat-item">EV Home: ${game.evHome}%</div>
+      <div class="stat-item">EV Away: ${game.evAway}%</div>
+    </div>
+    <div class="props">
+      <div class="stat-item highlight">Why: ${game.why}</div>
+    </div>
+    <div class="props">
+      <div class="stat-item">
+        Odds Home: ${game.oddsHome}
+        <span class="prob">(${probHome}%)</span>
       </div>
-    `;
+      <div class="stat-item">
+        Odds Away: ${game.oddsAway}
+        <span class="prob">(${probAway}%)</span>
+      </div>
+    </div>
+  `;
+  gamesContainer.appendChild(card);
+
+  // Add teams to calculator dropdown
+  [game.home, game.away].forEach(team => {
+    if(![...teamSelect.options].some(o=>o.value===team)) {
+      const option = document.createElement('option');
+      option.value = team;
+      option.textContent = team;
+      teamSelect.appendChild(option);
+    }
   });
 }
 
-// Fetch games from OddsAPI
-async function fetchGames(){
-  if(apiRequestsLeft <=0){
-    displayGames(mockGames);
-    alert("API limit reached! Showing mock data.");
+
+// --- CALCULATOR FUNCTION (kept as is) ---
+function calculateBet() {
+  const stake = parseFloat(document.getElementById('stake').value);
+  const team = teamSelect.value;
+  if(!stake || !team) {
+    alert("Enter stake and select team");
     return;
   }
-  try{
-    const res = await fetch(`https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${API_KEY}&regions=us&markets=h2h,spreads&oddsFormat=decimal`);
-    apiRequestsLeft--;
-    document.getElementById('reqLeft').textContent = apiRequestsLeft;
-    const data = await res.json();
-    if(data.length === 0) displayGames(mockGames);
-    else {
-      const games = data.map(g=>{
-        return {
-          home:g.home_team,
-          away:g.away_team,
-          date:g.commence_time,
-          h2hWins: Math.floor(Math.random()*10),
-          last10Home: Math.floor(Math.random()*10),
-          last10Away: Math.floor(Math.random()*10)
-        };
-      });
-      displayGames(games);
-    }
-  } catch(err){
-    console.error(err);
-    displayGames(mockGames);
-  }
+  const game = [...mockGames, ...gamesContainer.children].map(c => {
+    // Simplified lookup, assuming the game object is available
+    return mockGames.find(g => g.home === team || g.away === team);
+  }).find(g => g); 
+
+  if(!game) return;
+
+  const odds = game.home===team ? game.oddsHome : game.oddsAway;
+  const ev = game.home===team ? game.evHome : game.evAway;
+  const payout = (stake * odds).toFixed(2);
+
+  document.getElementById('calcResult').innerHTML = `
+    <strong>Potential Payout:</strong> $${payout} <br>
+    <strong>EV:</strong> ${ev}%
+  `;
 }
 
-// Initial load
-fetchGames();
-</script>
 
+// --- MAIN INITIALIZATION FUNCTION (UPDATED) ---
+async function init() {
+  const oddsData = await fetchOdds();
+  const mlbSchedule = await fetchMLBSchedule();
+  
+  const displayGames = [];
+  let availableTeams = new Set();
+  
+  if (oddsData && oddsData.length > 0) {
+    const topGames = oddsData.slice(0, 5);
+    
+    topGames.forEach(oddsGame => {
+      const mlbGame = mlbSchedule.find(
+        g => g.teams.home.team.name === oddsGame.home_team || g.teams.away.team.name === oddsGame.away_team
+      );
+
+      // Default odds to the first bookmaker for simplicity
+      const bookmaker = oddsGame.bookmakers[0];
+      const homeOutcome = bookmaker.markets[0].outcomes.find(o => o.name === oddsGame.home_team);
+      const awayOutcome = bookmaker.markets[0].markets[0].outcomes.find(o => o.name === oddsGame.away_team);
+
+      const gameData = {
+        home: oddsGame.home_team,
+        away: oddsGame.away_team,
+        date: oddsGame.commence_time,
+        
+        // --- Pitcher Integration ---
+        pitcherHome: mlbGame?.teams.home.probablePitcher?.fullName || "TBD",
+        pitcherAway: mlbGame?.teams.away.probablePitcher?.fullName || "TBD",
+        
+        // Placeholders (Needs API calls to be real)
+        last10Home: {wins: 5, losses: 5},
+        last10Away: {wins: 5, losses: 5},
+        why: "Data Analysis Missing (Next Step!)",
+        evHome: 5,
+        evAway: -5,
+        
+        // Odds data
+        oddsHome: homeOutcome?.point || 0, // Assuming decimal odds are provided
+        oddsAway: awayOutcome?.point || 0,
+      };
+      
+      displayGames.push(gameData);
+      availableTeams.add(gameData.home);
+      availableTeams.add(gameData.away);
+    });
+  } 
+  
+  // Fallback if no live data is found
+  if (displayGames.length === 0) {
+    mockGames.forEach(renderGame);
+    return;
+  }
+  
+  // Render live/merged data
+  displayGames.forEach(renderGame);
+  
+  // Re-populate team select now that all live teams are known
+  teamSelect.innerHTML = '<option value="">Select team</option>';
+  availableTeams.forEach(team => {
+      const option = document.createElement('option');
+      option.value = team;
+      option.textContent = team;
+      teamSelect.appendChild(option);
+  });
+}
+
+init();
+</script>
 </body>
 </html>
-
