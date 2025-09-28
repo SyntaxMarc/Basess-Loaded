@@ -1,295 +1,628 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bases Loaded - MLB Dashboard</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Bases Loaded — Diamond Edge (All-in-one)</title>
 <style>
-  body { font-family: Arial, sans-serif; background: #0b1d2f; color: #fff; margin:0; padding:0;}
-  header { padding: 20px; text-align: center; background: #071625; }
-  header h1 { margin:0; color:#ffce00; }
-  .game-card { background: #112a44; border-radius: 10px; margin: 15px auto; padding: 15px; width: 90%; max-width: 900px; box-shadow: 0 0 10px #000; }
-  .game-card h2 { margin: 0 0 10px 0; color: #ffce00; }
-  .stats, .props { display: flex; flex-wrap: wrap; gap: 10px; margin-top:10px; }
-  .stat-item { flex:1; background:#0f1f36; padding:10px; border-radius:5px; text-align:center; font-size: 0.9em; }
-  .prob { color: #4CAF50; font-weight: bold; margin-left: 5px; } 
-  .highlight { color:#ff9f1c; font-weight:bold; }
-  #apiUsage { padding:10px; background:#071625; text-align:center; }
-  #calculator { background:#112a44; margin:20px auto; padding:20px; border-radius:10px; max-width:500px; }
-  #calculator input, #calculator select, #calculator button { margin:5px 0; padding:8px; width:100%; border-radius:5px; border:none; }
-  #calculator button { background:#ffce00; color:#000; font-weight:bold; cursor:pointer; }
-  #calcResult { margin-top:10px; background:#0f1f36; padding:10px; border-radius:5px; text-align:center; }
+  :root{
+    --bg:#071528; --card:#0e2030; --muted:#9fb0c8; --accent:#1fb6ff; --gold:#ffd166;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;background:linear-gradient(180deg,#031022 0%,#071528 100%);color:#e7f1fb}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px;max-width:1200px;margin:0 auto}
+  .brand{display:flex;gap:12px;align-items:center}
+  .brand img{height:44px;border-radius:6px}
+  h1{margin:0;font-size:20px}
+  .topline{color:var(--muted);font-size:13px}
+  .container{max-width:1200px;margin:18px auto;padding:0 14px}
+  .grid{display:grid;grid-template-columns:1fr 420px;gap:16px}
+  .card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
+  .small{font-size:13px;color:var(--muted)}
+  .games{display:flex;flex-direction:column;gap:12px}
+  .game{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent)}
+  .game .title{display:flex;align-items:center;gap:12px;justify-content:space-between}
+  .teams{display:flex;gap:12px;align-items:center}
+  .team{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .team .name{font-weight:800}
+  .meta{color:var(--muted);font-size:13px}
+  .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+  .stat{background:rgba(255,255,255,0.02);padding:8px;border-radius:8px;text-align:center}
+  .why{background:rgba(255,201,102,0.06);padding:10px;border-radius:8px;color:var(--gold);font-weight:700}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  input,select{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit}
+  button{background:var(--accent);color:#021023;border:none;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:700}
+  .muted{color:var(--muted)}
+  #apiCounters{display:flex;gap:12px;align-items:center}
+  .pill{background:rgba(255,255,255,0.02);padding:6px 10px;border-radius:999px;font-weight:700}
+  footer{max-width:1200px;margin:18px auto;padding:12px 14px;color:var(--muted);font-size:13px}
+  @media(max-width:980px){.grid{grid-template-columns:1fr}header,.container,footer{padding:0 12px}}
 </style>
 </head>
 <body>
 <header>
-  <h1>Bases Loaded - MLB Dashboard</h1>
+  <div class="brand">
+    <img src="https://upload.wikimedia.org/wikipedia/en/0/0b/MLB_logo.svg" alt="MLB">
+    <div>
+      <h1>Bases Loaded — Diamond Edge</h1>
+      <div class="topline">MLB recommendations, player props & EV. PH time (UTC+8). Mock backup included.</div>
+    </div>
+  </div>
+
+  <div id="apiCounters">
+    <div class="pill">OddsAPI left: <span id="oddsLeft">500</span></div>
+    <div class="pill">BallDontLie calls (cached): <span id="bdlCount">0</span></div>
+  </div>
 </header>
 
-<div id="apiUsage">OddsAPI Requests Left: <span id="apiCount">500</span></div>
+<div class="container">
+  <div class="grid">
+    <!-- LEFT: Games / Cards / Calculator -->
+    <div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="small">Dashboard</div>
+            <h2 style="margin:6px 0">Today's suggested picks</h2>
+            <div class="small muted">Auto-updates from OddsAPI + BallDontLie — cached to save your free-tier quota</div>
+          </div>
+          <div class="small muted">Local (PH): <span id="localPH">--:--</span></div>
+        </div>
 
-<div id="gamesContainer"></div>
+        <hr style="border:none;height:8px">
 
-<div id="calculator">
-  <h2>Bet & EV Calculator</h2>
-  <input type="number" id="stake" placeholder="Enter stake amount" min="1">
-  <select id="teamSelect">
-    <option value="">Select team</option>
-  </select>
-  <button onclick="calculateBet()">Calculate</button>
-  <div id="calcResult"></div>
+        <div class="games" id="gamesList">
+          <!-- Game cards injected here -->
+        </div>
+      </div>
+
+      <div style="height:14px"></div>
+
+      <div class="card">
+        <h3>Bet & EV Calculator</h3>
+        <div class="small muted">Pick a team from the dropdown below (auto-filled from shown games)</div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <input id="stakeInput" type="number" placeholder="Stake (PHP)" min="1" style="width:150px">
+          <select id="betTeamSelect" style="min-width:200px">
+            <option value="">Select team...</option>
+          </select>
+          <button id="calcBtn">Calculate</button>
+        </div>
+        <div id="calcResult" style="margin-top:12px" class="muted"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Filters / Quick Picks / News -->
+    <aside>
+      <div class="card">
+        <h3>Quick Filters & Save</h3>
+        <div class="small muted">Filters / sort / local save</div>
+        <div style="margin-top:8px" class="controls">
+          <select id="filterSelect">
+            <option value="all">All games</option>
+            <option value="value">Value picks (EV &gt; 0)</option>
+          </select>
+          <select id="sortSelect">
+            <option value="time">Time (PH)</option>
+            <option value="ev">EV desc</option>
+          </select>
+          <button id="refreshBtn">Refresh</button>
+          <button id="saveBtn" style="background:#4caf50">Save snapshot</button>
+        </div>
+        <div style="margin-top:10px" class="small muted">Saved snapshot: <span id="savedAt">—</span></div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <div class="card">
+        <h3>Recommended Teams (≥70% suggested)</h3>
+        <ul id="recommendedList" class="small muted" style="margin:8px 0;padding-left:18px"></ul>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <div class="card">
+        <h3>News</h3>
+        <div id="newsList" class="small muted">Local mock news — add RSS later.</div>
+      </div>
+    </aside>
+  </div>
 </div>
 
-<footer style="padding:15px; text-align:center; background:#071625; margin-top:20px;">
-  <small>&copy; 2025 Bases Loaded. All rights reserved.</small>
+<footer>
+  <div>© 2025 Bases Loaded — Prototype. Keys are client-side for demo. Move to server/proxy for production.</div>
 </footer>
 
 <script>
-// --- API & Utility Settings ---
-// NOTE: Use your actual OddsAPI key here
-const oddsApiKey = '6d667177117b78ce8b2c728ee4721cb9'; 
-let apiRemaining = 500; // starting count
+/* =========================================================================
+   CONFIG / KEYS
+   - You've provided these earlier; they're used here as-is.
+   ========================================================================= */
+const ODDS_API_KEY = "6d667177117b78ce8b2c728ee4721cb9"; // user-provided
+const ODDS_API_URL = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/`;
+const BALLDONTLIE_BASE = "https://www.balldontlie.io/api/v1";
 
-const gamesContainer = document.getElementById('gamesContainer');
-const teamSelect = document.getElementById('teamSelect');
+/* =========================================================================
+   SETTINGS & State
+   ========================================================================= */
+const STATE = {
+  oddsLeft: 500,                // try to track remaining (we'll decrement locally)
+  bdlCalls: 0,
+  cacheTTLms: 1000 * 60 * 30,   // 30 minutes cache
+  cache: {},                    // in-memory cache (also mirrored to sessionStorage)
+  displayedGames: [],           // games data normalized for UI
+};
 
-// --- UTILITY FUNCTION: IMPLIEID PROBABILITY ---
-function calculateImpliedProbability(odds) {
-    const numOdds = parseFloat(odds);
-    if (isNaN(numOdds) || numOdds <= 1) return 0;
-    return (1 / numOdds) * 100;
+/* =========================================================================
+   Utilities
+   ========================================================================= */
+function qs(id){ return document.getElementById(id); }
+function nowPH(){ // returns ph time formatted hh:mm (local PH)
+  const now = new Date();
+  const utc = new Date(now.getTime() + now.getTimezoneOffset()*60000);
+  const ph = new Date(utc.getTime() + 8*3600000);
+  return ph.toLocaleString('en-PH',{hour:'2-digit',minute:'2-digit',month:'short',day:'numeric'});
+}
+function toPH(iso){ // full local string
+  try {
+    const d = new Date(iso);
+    const ph = new Date(d.getTime() + 8*3600000);
+    return ph.toLocaleString('en-PH',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  } catch(e){ return iso; }
+}
+function saveCache(){ sessionStorage.setItem('bl_cache', JSON.stringify({ts:Date.now(), data:STATE.cache})); }
+function loadCache(){
+  try{
+    const raw = sessionStorage.getItem('bl_cache');
+    if(!raw) return;
+    const obj = JSON.parse(raw);
+    if(Date.now() - obj.ts > STATE.cacheTTLms) { sessionStorage.removeItem('bl_cache'); return; }
+    STATE.cache = obj.data || {};
+  } catch(e){}
 }
 
-// Mock Data as backup 
-const mockGames = [
+/* =========================================================================
+   Mock data (used when API fails or for certain props)
+   ========================================================================= */
+const MOCK_GAMES = [
   {
-    home: "Yankees",
-    away: "Red Sox",
-    date: "2025-09-27T18:05:00Z", // ISO format for consistent date handling
+    id: "mock1",
+    home: "New York Yankees",
+    away: "Boston Red Sox",
+    commence_time: "2025-09-27T18:30:00Z",
+    stadium: "Yankee Stadium",
     pitcherHome: "Gerrit Cole",
     pitcherAway: "Chris Sale",
-    last10Home: {wins:7, losses:3},
-    last10Away: {wins:6, losses:4},
-    why: "Mock: Strong bullpen match",
-    oddsHome: 1.80, // Decimal odds
-    oddsAway: 2.00, // Decimal odds
-    evHome: 8,
-    evAway: -5
+    battersHome: ["Judge","Rizzo","LeMahieu"],
+    battersAway: ["Devers","Verdugo","Bogaerts"],
+    last10Home: {wins:8,losses:2},
+    last10Away: {wins:5,losses:5},
+    odds: {home:1.90, away:2.10}
   },
   {
-    home: "Dodgers",
-    away: "Giants",
-    date: "2025-09-27T20:10:00Z",
-    pitcherHome: "Clayton Kershaw",
-    pitcherAway: "Johnny Cueto",
-    last10Home: {wins:8, losses:2},
-    last10Away: {wins:5, losses:5},
-    why: "Mock: Hot hitting streak",
-    oddsHome: 1.70,
-    oddsAway: 2.10,
-    evHome: 12,
-    evAway: -7
+    id: "mock2",
+    home: "Los Angeles Dodgers",
+    away: "San Francisco Giants",
+    commence_time: "2025-09-27T20:10:00Z",
+    stadium: "Dodger Stadium",
+    pitcherHome: "Walker Buehler",
+    pitcherAway: "Logan Webb",
+    battersHome: ["Betts","Seager","Muncy"],
+    battersAway: ["Belt","La Stella","Yastrzemski"],
+    last10Home: {wins:7,losses:3},
+    last10Away: {wins:6,losses:4},
+    odds: {home:1.65, away:2.30}
   }
 ];
 
-// --- API FUNCTION: Fetch MLB Schedule (for pitchers) ---
-async function fetchMLBSchedule() {
-    const today = new Date().toISOString().slice(0, 10);
-    const url = `https://statsapi.mlb.com/api/v1/schedule/games/?sportId=1&startDate=${today}&endDate=${today}&hydrate=probablePitcher`;
-    try {
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.dates && data.dates.length > 0) {
-            return data.dates[0].games; // Array of games
-        }
-        return [];
-    } catch (e) {
-        console.error("MLB Schedule fetch failed.");
-        return [];
-    }
+/* =========================================================================
+   Caching helper - caches by key with timestamp
+   ========================================================================= */
+function getCached(key){
+  loadCache();
+  const rec = STATE.cache[key];
+  if(!rec) return null;
+  if(Date.now() - rec.ts > STATE.cacheTTLms){
+    delete STATE.cache[key];
+    saveCache();
+    return null;
+  }
+  return rec.value;
+}
+function setCached(key,value){
+  STATE.cache[key] = { ts: Date.now(), value };
+  saveCache();
 }
 
-// --- Fetch live OddsAPI data ---
-async function fetchOdds() {
-  if(apiRemaining <= 0) return null;
-  try {
-    // Requesting Head-to-Head (Moneyline) market
-    const res = await fetch(`https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${oddsApiKey}&regions=us&markets=h2h`);
-    apiRemaining--;
-    document.getElementById('apiCount').textContent = apiRemaining;
+/* =========================================================================
+   API wrappers with caching and usage tracking
+   - fetchOdds(): fetch odds list from OddsAPI (limited)
+   - fetchTeamGames(teamName): fetch last games via BallDontLie (team id mapping)
+   - fetchTeamsList(): list teams from BallDontLie (cached)
+   ========================================================================= */
+async function fetchOdds(){
+  const cacheKey = "odds_v1";
+  const cached = getCached(cacheKey);
+  if(cached) return cached;
+
+  // local decrement and display
+  if(STATE.oddsLeft <= 0) return null;
+  try{
+    const url = new URL(ODDS_API_URL);
+    url.searchParams.set("apiKey", ODDS_API_KEY);
+    url.searchParams.set("regions", "us");
+    url.searchParams.set("markets", "h2h");
+    url.searchParams.set("oddsFormat","decimal");
+
+    const res = await fetch(url.toString());
+    STATE.oddsLeft = Math.max(0, STATE.oddsLeft - 1);
+    qs('oddsLeft').textContent = STATE.oddsLeft;
+    if(!res.ok) throw new Error('OddsAPI response not ok:'+res.status);
     const data = await res.json();
+    setCached(cacheKey, data);
     return data;
-  } catch(e) {
-    console.log("OddsAPI fetch failed, using mock data.");
+  }catch(err){
+    console.warn("fetchOdds error:",err);
     return null;
   }
 }
 
-// --- RENDER GAME CARD FUNCTION ---
-function renderGame(game) {
-  // Calculate probability
-  const probHome = calculateImpliedProbability(game.oddsHome).toFixed(1);
-  const probAway = calculateImpliedProbability(game.oddsAway).toFixed(1);
-
-  const card = document.createElement('div');
-  card.className = 'game-card';
-  card.innerHTML = `
-    <h2>${game.away} @ ${game.home}</h2>
-    <div>Date: ${new Date(game.date).toLocaleTimeString()}</div>
-    <div class="stats">
-      <div class="stat-item">Home Pitcher: <span class="highlight">${game.pitcherHome}</span></div>
-      <div class="stat-item">Away Pitcher: <span class="highlight">${game.pitcherAway}</span></div>
-      <div class="stat-item">Home Last 10: W${game.last10Home.wins}-L${game.last10Home.losses}</div>
-      <div class="stat-item">Away Last 10: W${game.last10Away.wins}-L${game.last10Away.losses}</div>
-      <div class="stat-item">EV Home: ${game.evHome}%</div>
-      <div class="stat-item">EV Away: ${game.evAway}%</div>
-    </div>
-    <div class="props">
-      <div class="stat-item highlight">Why: ${game.why}</div>
-    </div>
-    <div class="props">
-      <div class="stat-item">
-        Odds Home: ${game.oddsHome}
-        <span class="prob">(${probHome}%)</span>
-      </div>
-      <div class="stat-item">
-        Odds Away: ${game.oddsAway}
-        <span class="prob">(${probAway}%)</span>
-      </div>
-    </div>
-  `;
-  gamesContainer.appendChild(card);
+async function fetchBdlTeams(){
+  const cacheKey = "bdl_teams";
+  const cached = getCached(cacheKey);
+  if(cached) return cached;
+  try{
+    const res = await fetch(`${BALLDONTLIE_BASE}/teams`);
+    STATE.bdlCalls++; qs('bdlCount').textContent = STATE.bdlCalls;
+    if(!res.ok) throw new Error('bdl teams error');
+    const j = await res.json();
+    setCached(cacheKey, j.data || j);
+    return j.data || j;
+  }catch(err){
+    console.warn('fetchBdlTeams err',err);
+    return null;
+  }
 }
 
-
-// --- CALCULATOR FUNCTION ---
-function calculateBet() {
-  const stake = parseFloat(document.getElementById('stake').value);
-  const team = teamSelect.value;
-  if(!stake || !team) {
-    alert("Enter stake and select team");
-    return;
+async function fetchLastGamesForTeam(teamId, perPage=10){
+  const cacheKey = `bdl_team_games_${teamId}_${perPage}`;
+  const cached = getCached(cacheKey);
+  if(cached) return cached;
+  try{
+    const url = `${BALLDONTLIE_BASE}/games?team_ids[]=${teamId}&per_page=${perPage}&postseason=false`;
+    const res = await fetch(url);
+    STATE.bdlCalls++; qs('bdlCount').textContent = STATE.bdlCalls;
+    if(!res.ok) throw new Error('bdl games error');
+    const j = await res.json();
+    setCached(cacheKey,j.data || j);
+    return j.data || j;
+  }catch(err){
+    console.warn('fetchLastGamesForTeam err',err);
+    return null;
   }
-  
-  let game = null;
-  
-  // Try to find the game object based on the currently displayed cards/data
-  const allGameData = (gamesContainer.children.length > 0) 
-    ? [...gamesContainer.children].map(card => {
-        const h2Text = card.querySelector('h2').textContent;
-        const homeTeam = h2Text.split(' @ ')[1].trim();
-        const awayTeam = h2Text.split(' @ ')[0].trim();
-        
-        // Extract odds from the displayed text
-        const oddsHomeMatch = card.querySelector('.props .stat-item:nth-child(1)').textContent.match(/Odds Home: (\d+\.?\d*)/);
-        const oddsAwayMatch = card.querySelector('.props .stat-item:nth-child(2)').textContent.match(/Odds Away: (\d+\.?\d*)/);
-
-        // This assumes the EV placeholder is always 5/-5 if not live calculated
-        return {
-            home: homeTeam,
-            away: awayTeam,
-            oddsHome: parseFloat(oddsHomeMatch ? oddsHomeMatch[1] : 0),
-            oddsAway: parseFloat(oddsAwayMatch ? oddsAwayMatch[1] : 0),
-            evHome: 5, 
-            evAway: -5 
-        };
-    })
-    : mockGames; // Fallback to mock data structure
-
-  game = allGameData.find(g => g.home === team || g.away === team);
-
-
-  if(!game) {
-    document.getElementById('calcResult').innerHTML = `Game data for ${team} not found.`;
-    return;
-  }
-
-  const odds = game.home===team ? game.oddsHome : game.oddsAway;
-  const ev = game.home===team ? game.evHome : game.evAway;
-  const payout = (stake * odds).toFixed(2);
-
-  document.getElementById('calcResult').innerHTML = `
-    <strong>Potential Payout:</strong> $${payout} <br>
-    <strong>EV:</strong> ${ev}%
-  `;
 }
 
+/* =========================================================================
+   Utility: try best-effort mapping from OddsAPI team name to BallDontLie team
+   - We'll normalize names and do substring matching
+   ========================================================================= */
+function normalizeName(s){
+  return s.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+}
+function findTeamIdByName(oddsTeamName, teamsList){
+  const norm = normalizeName(oddsTeamName);
+  // try exact match of full_name or abbreviation
+  for(const t of teamsList){
+    if(normalizeName(t.full_name) === norm) return t.id;
+    if(t.abbreviation && normalizeName(t.abbreviation) === norm) return t.id;
+    if(normalizeName(t.name) === norm) return t.id;
+  }
+  // fallback: substring match on full_name
+  for(const t of teamsList){
+    if(normalizeName(t.full_name).includes(norm) || norm.includes(normalizeName(t.full_name).split(' ')[0])) return t.id;
+  }
+  return null;
+}
 
-// --- MAIN INITIALIZATION FUNCTION ---
-async function init() {
-  const oddsData = await fetchOdds();
-  const mlbSchedule = await fetchMLBSchedule();
-  
-  const displayGames = [];
-  let availableTeams = new Set();
-  
-  if (oddsData && oddsData.length > 0) {
-    const topGames = oddsData.slice(0, 5); // Use top 5 games
-    
-    topGames.forEach(oddsGame => {
-      // Find the corresponding game in the MLB schedule by team names
-      const mlbGame = mlbSchedule.find(
-        g => g.teams.home.team.name === oddsGame.home_team || g.teams.away.team.name === oddsGame.away_team
-      );
+/* =========================================================================
+   Compute recommended team + 'why it hits'
+   Simple algorithm:
+    - last10WinRate (0-100)
+    - implied probability from odds (IPC)
+    - score = last10WinRate*0.6 + (100 - IPC)*0.4  (higher -> favored)
+    - if diff >= 10 => "Strong", else "Lean"
+   This is a heuristic for demo.
+   ========================================================================= */
+function impliedProbFromOdds(o){
+  if(!o || o <= 0) return 0;
+  return (1 / o) * 100;
+}
+function computeWhy(game){
+  const last10Home = game.last10Home?.wins ?? 5;
+  const last10Away = game.last10Away?.wins ?? 5;
+  const homeWinPct = (last10Home / ( (game.last10Home?.wins ?? 5) + (game.last10Home?.losses ?? 5) )) * 100;
+  const awayWinPct = (last10Away / ( (game.last10Away?.wins ?? 5) + (game.last10Away?.losses ?? 5) )) * 100;
+  const ipcHome = impliedProbFromOdds(game.odds.home);
+  const ipcAway = impliedProbFromOdds(game.odds.away);
 
-      // Default odds to the first bookmaker for simplicity
-      const bookmaker = oddsGame.bookmakers[0];
-      const market = bookmaker?.markets.find(m => m.key === 'h2h');
-      
-      const homeOutcome = market?.outcomes.find(o => o.name === oddsGame.home_team);
-      const awayOutcome = market?.outcomes.find(o => o.name === oddsGame.away_team);
+  const homeScore = (homeWinPct * 0.6) + ((100 - ipcHome) * 0.4);
+  const awayScore = (awayWinPct * 0.6) + ((100 - ipcAway) * 0.4);
 
-      // Construct the final game data object
-      const gameData = {
-        home: oddsGame.home_team,
-        away: oddsGame.away_team,
-        date: oddsGame.commence_time,
-        
-        // Pitcher Integration
-        pitcherHome: mlbGame?.teams.home.probablePitcher?.fullName || "TBD",
-        pitcherAway: mlbGame?.teams.away.probablePitcher?.fullName || "TBD",
-        
-        // Placeholders (Needs detailed API work to be real)
-        last10Home: {wins: 5, losses: 5},
-        last10Away: {wins: 5, losses: 5},
-        why: "Analysis requires Pitcher Splits vs. Team Stats.",
-        evHome: 5,
-        evAway: -5,
-        
-        // **CRITICAL FIX**: Using 'price' for Moneyline (h2h) odds
-        oddsHome: homeOutcome?.price || 0, 
-        oddsAway: awayOutcome?.price || 0,
-      };
-      
-      displayGames.push(gameData);
-      availableTeams.add(gameData.home);
-      availableTeams.add(gameData.away);
+  const diff = homeScore - awayScore;
+  let verdict = '';
+  if(Math.abs(diff) >= 12) verdict = 'Strong';
+  else if(Math.abs(diff) >= 5) verdict = 'Lean';
+  else verdict = 'Even';
+
+  const recommended = homeScore >= awayScore ? game.home : game.away;
+  const explanation = `${recommended} • ${verdict} edge. Last10 (H:${homeWinPct.toFixed(0)}% / A:${awayWinPct.toFixed(0)}%), IPC (H:${ipcHome.toFixed(1)}% / A:${ipcAway.toFixed(1)}%)`;
+
+  return { recommended, verdict, explanation, homeScore, awayScore };
+}
+
+/* =========================================================================
+   Normalize OddsAPI payload to our UI model
+   - We protect against missing bookmakers or markets
+   ========================================================================= */
+function normalizeOddsGame(g){
+  // g: object from OddsAPI
+  const outcomes = (g.bookmakers && g.bookmakers[0] && g.bookmakers[0].markets && g.bookmakers[0].markets[0] && g.bookmakers[0].markets[0].outcomes) || [];
+  // find home/away prices by name match
+  let homePrice = null, awayPrice = null;
+  outcomes.forEach(o=>{
+    if(o.name && g.home_team && o.name.toLowerCase() === g.home_team.toLowerCase()) homePrice = o.price;
+    if(o.name && g.away_team && o.name.toLowerCase() === g.away_team.toLowerCase()) awayPrice = o.price;
+  });
+  // fallback: if order known (some APIs use outcome[0]=home)
+  if(homePrice==null && outcomes[0]) homePrice = outcomes[0].price;
+  if(awayPrice==null && outcomes[1]) awayPrice = outcomes[1].price;
+
+  return {
+    id: g.id || `${g.home_team}_${g.away_team}_${g.commence_time}`,
+    home: g.home_team,
+    away: g.away_team,
+    commence_time: g.commence_time,
+    odds: { home: homePrice || 0, away: awayPrice || 0 },
+    siteRaw: g
+  };
+}
+
+/* =========================================================================
+   Render functions
+   ========================================================================= */
+function renderGamesList(games){
+  const el = qs('gamesList');
+  el.innerHTML = '';
+  STATE.displayedGames = games; // keep for calculator & sorting
+  // populate bet dropdown
+  const betSelect = qs('betTeamSelect');
+  betSelect.innerHTML = '<option value="">Select team...</option>';
+
+  for(const g of games){
+    const whyObj = computeWhy(g);
+    const card = document.createElement('div');
+    card.className = 'game';
+    card.innerHTML = `
+      <div class="title">
+        <div class="teams">
+          <div class="team">
+            <div class="name">${g.away}</div>
+            <div class="meta">Away</div>
+          </div>
+          <div style="width:12px"></div>
+          <div class="team">
+            <div class="name">${g.home}</div>
+            <div class="meta">Home</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div class="meta">${toPH(g.commence_time)}</div>
+          <div class="muted small">Stadium: ${g.stadium || '—'}</div>
+        </div>
+      </div>
+
+      <div class="stats-grid" style="margin-top:10px">
+        <div class="stat"><div class="small muted">Home Pitcher</div><div>${g.pitcherHome || 'TBD'}</div></div>
+        <div class="stat"><div class="small muted">Away Pitcher</div><div>${g.pitcherAway || 'TBD'}</div></div>
+        <div class="stat"><div class="small muted">Recommended</div><div>${whyObj.recommended} <span style="color:${whyObj.verdict==='Strong'? '#4caf50' : whyObj.verdict==='Lean' ? '#ffd166' : '#9fb0c8'}">(${whyObj.verdict})</span></div></div>
+
+        <div class="stat"><div class="small muted">Home last10</div><div>${(g.last10Home?.wins ?? '—')}W - ${(g.last10Home?.losses ?? '—')}L</div></div>
+        <div class="stat"><div class="small muted">Away last10</div><div>${(g.last10Away?.wins ?? '—')}W - ${(g.last10Away?.losses ?? '—')}L</div></div>
+        <div class="stat"><div class="small muted">EV Home</div><div>${( (whyObj.homeScore||0) - (whyObj.awayScore||0) ).toFixed(1)} pts</div></div>
+
+        <div class="stat"><div class="small muted">Odds (home)</div><div>${g.odds.home || '—'}</div></div>
+        <div class="stat"><div class="small muted">Odds (away)</div><div>${g.odds.away || '—'}</div></div>
+        <div class="stat"><div class="small muted">Key Batters</div><div>${(g.battersHome||[]).slice(0,3).join(', ') || '—'}</div></div>
+      </div>
+
+      <div style="margin-top:10px" class="why">${whyObj.explanation}</div>
+    `;
+    el.appendChild(card);
+
+    // add teams to bet dropdown
+    [g.home, g.away].forEach(t=>{
+      if(![...betSelect.options].some(o=>o.value===t)){
+        const opt = document.createElement('option'); opt.value = t; opt.textContent = t; betSelect.appendChild(opt);
+      }
     });
-  } 
-  
-  // Fallback to mock data if no live data is found
-  if (displayGames.length === 0) {
-    mockGames.forEach(renderGame);
-    mockGames.forEach(g => {
-        availableTeams.add(g.home);
-        availableTeams.add(g.away);
-    });
+  }
+}
+
+/* =========================================================================
+   Merge pipeline:
+   - Try to get OddsAPI data
+   - For each odds game, try to get BallDontLie team id => last10 games & stadium
+   - Fill pitcher/batters from BDL where possible (best-effort)
+   - If any step fails, fallback to MOCK_GAMES
+   ========================================================================= */
+async function buildAndRender(){
+  qs('localPH').textContent = nowPH();
+  // 1) load teams map from BallDontLie
+  const teamsList = await fetchBdlTeams() || [];
+  // 2) fetch odds
+  const oddsPayload = await fetchOdds();
+  let normalized = [];
+  if(Array.isArray(oddsPayload) && oddsPayload.length){
+    normalized = oddsPayload.map(normalizeOddsGame);
   } else {
-    // Render live/merged data
-    displayGames.forEach(renderGame);
+    // fallback: use mocks
+    normalized = MOCK_GAMES.map(g=>({
+      id: g.id,
+      home: g.home,
+      away: g.away,
+      commence_time: g.commence_time,
+      odds: g.odds,
+      stadium: g.stadium,
+      pitcherHome: g.pitcherHome,
+      pitcherAway: g.pitcherAway,
+      battersHome: g.battersHome,
+      battersAway: g.battersAway,
+      last10Home: g.last10Home,
+      last10Away: g.last10Away
+    }));
   }
-  
-  // Populate the team select dropdown with available teams
-  teamSelect.innerHTML = '<option value="">Select team</option>';
-  availableTeams.forEach(team => {
-      const option = document.createElement('option');
-      option.value = team;
-      option.textContent = team;
-      teamSelect.appendChild(option);
+
+  // 3) For each normalized game, try to enrich via BallDontLie
+  for(const g of normalized){
+    // try fill stadium/pitchers/last10/batters if missing
+    try{
+      const homeId = findTeamIdByName(g.home, teamsList || []);
+      const awayId = findTeamIdByName(g.away, teamsList || []);
+      // last10 for home
+      if(homeId){
+        const lastHome = await fetchLastGamesForTeam(homeId,10);
+        if(lastHome && lastHome.length){
+          // compute wins/losses for last 10
+          const wl = lastHome.slice(0,10).reduce((acc,gm)=>{
+            const isHome = (gm.home_team && normalizeName(gm.home_team.full_name||gm.home_team) === normalizeName(g.home)) || (gm.home_team && (gm.home_team.full_name===g.home));
+            // ball dont lie structure: gm.home_team: {id, full_name}
+            const homeName = gm.home_team.full_name || gm.home_team.name || '';
+            const awayName = gm.visitor_team.full_name || gm.visitor_team.name || '';
+            const homeScore = gm.home_team_score != null ? gm.home_team_score : null;
+            const awayScore = gm.visitor_team_score != null ? gm.visitor_team_score : null;
+            // fallback: if score not present, break
+            if(homeScore==null || awayScore==null) return acc;
+            const didHomeWin = homeScore > awayScore;
+            if(didHomeWin) acc.wins++; else acc.losses++;
+            return acc;
+          }, {wins:0,losses:0});
+          if(wl.wins+wl.losses > 0) g.last10Home = wl;
+        }
+      }
+      if(awayId){
+        const lastAway = await fetchLastGamesForTeam(awayId,10);
+        if(lastAway && lastAway.length){
+          const wl = lastAway.slice(0,10).reduce((acc,gm)=>{
+            const homeScore = gm.home_team_score != null ? gm.home_team_score : null;
+            const awayScore = gm.visitor_team_score != null ? gm.visitor_team_score : null;
+            if(homeScore==null || awayScore==null) return acc;
+            const didAwayWin = awayScore > homeScore;
+            if(didAwayWin) acc.wins++; else acc.losses++;
+            return acc;
+          }, {wins:0,losses:0});
+          if(wl.wins+wl.losses > 0) g.last10Away = wl;
+        }
+      }
+      // best-effort stadium info from teamsList
+      if(teamsList && teamsList.length){
+        const ht = teamsList.find(t=>t.id===homeId);
+        if(ht && ht.full_name) g.stadium = ht.home_city || ht.full_name;
+      }
+      // NOTE: BallDontLie does not reliably include starting pitcher assignment in simple endpoints.
+      // We'll keep pitcherHome/pitcherAway if present from OddsAPI or mock. For batters, we can suggest top batters from roster but that requires extra calls.
+    }catch(e){
+      console.warn('Enrich error',e);
+    }
+  }
+
+  // finally deduplicate by key and sort by commence_time
+  const uniq = [];
+  const seen = new Set();
+  normalized.sort((a,b)=> new Date(a.commence_time) - new Date(b.commence_time));
+  for(const g of normalized){
+    const key = `${g.home}|${g.away}|${g.commence_time}`;
+    if(seen.has(key)) continue;
+    seen.add(key);
+    // ensure we have at least odds numbers
+    if(!g.odds) g.odds = { home: 0, away: 0 };
+    // ensure last10 defaults
+    if(!g.last10Home) g.last10Home = {wins:5,losses:5};
+    if(!g.last10Away) g.last10Away = {wins:5,losses:5};
+    uniq.push(g);
+  }
+
+  renderGamesList(uniq);
+  // update recommended list
+  const recEl = qs('recommendedList');
+  recEl.innerHTML = '';
+  uniq.forEach(g=>{
+    const why = computeWhy(g);
+    if(why.recommended && ((why.recommended && (why.recommended === g.home && why.homeScore - why.awayScore > 0 && (why.homeScore - why.awayScore) > 12) ) || (why.recommended === g.away && why.awayScore - why.homeScore > 12) )){
+      const li = document.createElement('li'); li.textContent = `${why.recommended} — ${why.explanation}`; recEl.appendChild(li);
+    }
   });
 }
 
-init();
+/* =========================================================================
+   Calculator UI
+   ========================================================================= */
+qs('calcBtn').addEventListener('click', ()=>{
+  const stake = parseFloat(qs('stakeInput').value);
+  const team = qs('betTeamSelect').value;
+  if(!stake || !team){ alert('Enter stake and pick a team'); return; }
+  // find game that contains the team
+  const g = STATE.displayedGames.find(x=>x.home===team || x.away===team);
+  if(!g){ alert('Team not available in shown games'); return; }
+  const odds = (g.home === team) ? (g.odds.home||1) : (g.odds.away||1);
+  const payout = stake * odds;
+  // EV estimate = (impliedProb * odds - 1) * 100%  (simple)
+  const ipc = impliedProbFromOdds(odds)/100;
+  const evDecimal = (ipc * odds) - 1;
+  qs('calcResult').innerHTML = `<div style="font-weight:800">${team}</div>
+    <div class="small muted">Odds: ${odds}</div>
+    <div style="margin-top:6px">Payout (incl. stake): <strong>₱${payout.toFixed(2)}</strong></div>
+    <div>Estimated EV: <strong>${(evDecimal*100).toFixed(2)}%</strong></div>
+  `;
+});
+
+/* =========================================================================
+   Save / Refresh / UI wiring
+   ========================================================================= */
+qs('refreshBtn').addEventListener('click', ()=>{ buildAndRender(); });
+qs('saveBtn').addEventListener('click', ()=>{
+  const snapshot = { ts: Date.now(), games: STATE.displayedGames };
+  localStorage.setItem('bl_snapshot', JSON.stringify(snapshot));
+  qs('savedAt').textContent = new Date(snapshot.ts).toLocaleString();
+});
+function loadSnapshot(){ const raw = localStorage.getItem('bl_snapshot'); if(raw) qs('savedAt').textContent = new Date(JSON.parse(raw).ts).toLocaleString(); }
+
+/* =========================================================================
+   News (mock) & UI init
+   ========================================================================= */
+function loadMockNews(){
+  const n = [
+    "Lineups posted — check probable pitchers 4–8 hrs ahead.",
+    "Injury note: Closer day-to-day for Team X (mock).",
+    "High EV props appearing on tonight's slate (mock)."
+  ];
+  qs('newsList').textContent = n.join(' • ');
+}
+function refreshLocalTime(){ qs('localPH').textContent = nowPH(); setTimeout(refreshLocalTime,30000); }
+
+/* =========================================================================
+   Init
+   ========================================================================= */
+(async function init(){
+  loadCache();
+  loadMockNews();
+  refreshLocalTime();
+  buildAndRender();
+  const snap = localStorage.getItem('bl_snapshot');
+  if(snap) qs('savedAt').textContent = new Date(JSON.parse(snap).ts).toLocaleString();
+  // show counters (oddsLeft initial)
+  qs('oddsLeft').textContent = STATE.oddsLeft || 500;
+  qs('bdlCount').textContent = STATE.bdlCalls || 0;
+})();
 </script>
 </body>
 </html>
